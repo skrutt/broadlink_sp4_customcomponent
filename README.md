@@ -21,7 +21,7 @@ You also need to add this:
 switch:
   platform: sp4
   
-to your configuration.yaml.
+to your configuration.yaml. Note that github seems to be mangling the newline, you might not be able to copy this text directly from here.
 
 Then there is configuration, now you need to add your devices in switch/sp4.py
 
