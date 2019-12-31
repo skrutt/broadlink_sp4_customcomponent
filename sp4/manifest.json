@@ -1,9 +1,11 @@
-
 {
-  "domain": "sp4",
-  "name": "Example test",
+  "domain": "clas",
+  "name": "Clas",
   "documentation": "",
+  "requirements": [],
   "dependencies": [],
-  "codeowners": [],
-  "requirements": []
+  "codeowners": [
+    "@skrutt",
+    "@danielsolistensvik"
+  ]
 }
