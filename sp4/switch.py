@@ -1,35 +1,101 @@
-
-"""Support for Broadlink RM devices."""
-from homeassistant.components.switch import SwitchDevice
-from homeassistant.components.switch import ENTITY_ID_FORMAT
+"""Support for Clas Ohlson devices."""
+import binascii
+from datetime import timedelta
 import logging
+import socket
+
 from . import sp4 as _sp4
+import voluptuous as vol
+
+from homeassistant.components.switch import (
+    ENTITY_ID_FORMAT,
+    PLATFORM_SCHEMA,
+    SwitchDevice,
+)
+from homeassistant.const import (
+    CONF_COMMAND_OFF,
+    CONF_COMMAND_ON,
+    CONF_FRIENDLY_NAME,
+    CONF_HOST,
+    CONF_MAC,
+    CONF_SWITCHES,
+    CONF_TIMEOUT,
+    CONF_TYPE,
+    STATE_ON,
+)
+import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.util import Throttle, slugify
+
+from . import async_setup_service, data_packet
 
 _LOGGER = logging.getLogger(__name__)
 
+TIME_BETWEEN_UPDATES = timedelta(seconds=5)
+
+DEFAULT_NAME = "Clas switch"
+DEFAULT_TIMEOUT = 10
+DEFAULT_RETRY = 2
+CONF_SLOTS = "slots"
+CONF_RETRY = "retry"
+
+SP4_TYPES = ["sp4"]
+
+SWITCH_TYPES = SP4_TYPES
+
+SWITCH_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_COMMAND_OFF): data_packet,
+        vol.Optional(CONF_COMMAND_ON): data_packet,
+        vol.Optional(CONF_FRIENDLY_NAME): cv.string,
+    }
+)
+
+PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
+    {
+        vol.Optional(CONF_SWITCHES, default={}): cv.schema_with_slug_keys(
+            SWITCH_SCHEMA
+        ),
+        vol.Required(CONF_HOST): cv.string,
+        vol.Required(CONF_MAC): cv.string,
+        vol.Optional(CONF_FRIENDLY_NAME, default=DEFAULT_NAME): cv.string,
+        vol.Optional(CONF_TYPE, default=SWITCH_TYPES[0]): vol.In(SWITCH_TYPES),
+        vol.Optional(CONF_TIMEOUT, default=DEFAULT_TIMEOUT): cv.positive_int,
+        vol.Optional(CONF_RETRY, default=DEFAULT_RETRY): cv.positive_int,
+    }
+)
+
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
-    """Set up the Broadlink switches."""
-    
-    broadlink_device = _sp4.sp4(('192.168.10.6', 80), b''.fromhex('4bb02da7df24'), 0x7579, timeout = 5) #Add device 1   EDIT
-    broadlink_device2 = _sp4.sp4(('192.168.10.12', 80), b''.fromhex('ecb02da7df24'), 0x7579, timeout = 5) #Add device 2   EDIT
-    
-    auth = 0
-    try:
-        _LOGGER.info(broadlink_device.auth())    #Auth device 1   EDIT
-        _LOGGER.info(broadlink_device2.auth())   #Auth device 2   EDIT
-        _LOGGER.info("That was auth response")
-        auth = 1
-    except:
-        _LOGGER.info("Failed auth response")
-        
-    
-    switches = [BroadlinkSP4('guestroom', broadlink_device, auth), BroadlinkSP4('Computercorner', broadlink_device2, auth)] #Add all devices, with names   EDIT
-    
-    add_entities(switches)
-    _LOGGER.info("Setup done")
+    """Set up the Clas Ohlson switches."""
 
-class BroadlinkSP4(SwitchDevice):
+    devices = config.get(CONF_SWITCHES)
+    slots = config.get("slots", {})
+    ip_addr = config.get(CONF_HOST)
+    friendly_name = config.get(CONF_FRIENDLY_NAME)
+    mac_addr = binascii.unhexlify(config.get(CONF_MAC).encode().replace(b":", b""))
+    switch_type = config.get(CONF_TYPE)
+    retry_times = config.get(CONF_RETRY)
+
+    def _get_mp1_slot_name(switch_friendly_name, slot):
+        """Get slot name."""
+        if not slots[f"slot_{slot}"]:
+            return f"{switch_friendly_name} slot {slot}"
+        return slots[f"slot_{slot}"]
+
+    if switch_type in SP4_TYPES:
+        clas_device = _sp4.sp4((ip_addr, 80), mac_addr, 0x7579, None)
+        switches = [ClasSP4(friendly_name, clas_device, retry_times)]
+    
+    clas_device.timeout = config.get(CONF_TIMEOUT)
+    try:
+        clas_device.auth()
+    except OSError:
+        _LOGGER.error("Failed to connect to device")
+
+    add_entities(switches)
+
+class ClasSP4(SwitchDevice):
     """Representation of an Broadlink switch."""
     def __init__(self, name, device, haskey = 0):
         """Initialize the switch."""
@@ -141,4 +207,3 @@ class BroadlinkSP4(SwitchDevice):
                 self._state = self._dev.get_state()
         except:
             _LOGGER.error("except in update")
-    
