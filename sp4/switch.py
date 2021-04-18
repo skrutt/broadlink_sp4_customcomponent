@@ -10,7 +10,7 @@ import voluptuous as vol
 from homeassistant.components.switch import (
     ENTITY_ID_FORMAT,
     PLATFORM_SCHEMA,
-    SwitchDevice,
+    SwitchEntity,
 )
 from homeassistant.const import (
     CONF_COMMAND_OFF,
@@ -95,7 +95,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
 
     add_entities(switches)
 
-class ClasSP4(SwitchDevice):
+class ClasSP4(SwitchEntity):
     """Representation of an Broadlink switch."""
     def __init__(self, name, device, haskey = 0):
         """Initialize the switch."""
